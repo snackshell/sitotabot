@@ -17,6 +17,7 @@ export async function validateParticipant(
   userFirstSeen?: Date | null
 ): Promise<EligibilityResult> {
   // Check 1: Verify channel membership for all required channels
+  let allChannelsAreAdmin = true;
   for (const channelId of channelTelegramIds) {
     const memberCheck = await checkChannelMembership(
       api,
@@ -25,6 +26,13 @@ export async function validateParticipant(
     );
     if (!memberCheck.isEligible) {
       return memberCheck;
+    }
+
+    if (
+      memberCheck.status !== "administrator" &&
+      memberCheck.status !== "creator"
+    ) {
+      allChannelsAreAdmin = false;
     }
   }
 
@@ -46,17 +54,19 @@ export async function validateParticipant(
   }
 
   if (giveaway.type === "existing_members") {
-    if (!userFirstSeen) {
+    if (userFirstSeen) {
+      if (userFirstSeen >= giveaway.startTime) {
+        return {
+          isEligible: false,
+          reason:
+            "This giveaway is only for existing members from before it started.",
+        };
+      }
+    } else if (!allChannelsAreAdmin) {
       return {
         isEligible: false,
-        reason: "Unable to verify that you were an existing member before this giveaway started.",
-      };
-    }
-
-    if (userFirstSeen >= giveaway.startTime) {
-      return {
-        isEligible: false,
-        reason: "This giveaway is only for existing members from before it started.",
+        reason:
+          "Unable to verify that you were already a member before this giveaway started.",
       };
     }
   }
@@ -86,7 +96,7 @@ export async function checkChannelMembership(
   api: Api,
   channelTelegramId: bigint | number | string,
   userTelegramId: number
-): Promise<EligibilityResult> {
+): Promise<EligibilityResult & { status?: string }> {
   try {
     const member = await api.getChatMember(
       Number(channelTelegramId),
@@ -100,7 +110,7 @@ export async function checkChannelMembership(
       };
     }
 
-    return { isEligible: true };
+    return { isEligible: true, status: member.status };
   } catch (error) {
     log.error(
       { error, channelTelegramId, userTelegramId },

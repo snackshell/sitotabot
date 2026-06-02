@@ -122,4 +122,17 @@ describe("validateParticipant", () => {
     expect(result.isEligible).toBe(false);
     expect(result.reason).toContain("existing members");
   });
+
+  it("allows existing member admins even without firstSeen history", async () => {
+    const result = await validateParticipant(
+      makeApi(["administrator"]),
+      makeGiveaway("existing_members"),
+      [1000n],
+      123,
+      null,
+      null
+    );
+
+    expect(result.isEligible).toBe(true);
+  });
 });
