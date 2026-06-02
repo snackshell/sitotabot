@@ -66,7 +66,7 @@ export async function isChannelAdmin(
   userId: number
 ): Promise<boolean> {
   try {
-    const member = await api.getChatMember(chatId, userId);
+    const member = await api.getChatMember(Number(chatId), userId);
     return member.status === "creator" || member.status === "administrator";
   } catch (error) {
     log.error({ error, chatId, userId }, "Failed to check admin status");

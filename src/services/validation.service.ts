@@ -13,7 +13,8 @@ export async function validateParticipant(
   giveaway: GiveawayWithRelations,
   channelTelegramIds: bigint[],
   userTelegramId: number,
-  userAccountDate?: Date | null
+  userAccountDate?: Date | null,
+  userFirstSeen?: Date | null
 ): Promise<EligibilityResult> {
   // Check 1: Verify channel membership for all required channels
   for (const channelId of channelTelegramIds) {
@@ -27,7 +28,40 @@ export async function validateParticipant(
     }
   }
 
-  // Check 2: Account age
+  // Check 2: Giveaway audience rule
+  if (giveaway.type === "new_members") {
+    if (!userFirstSeen) {
+      return {
+        isEligible: false,
+        reason: "Unable to verify when you first joined the bot.",
+      };
+    }
+
+    if (userFirstSeen < giveaway.startTime) {
+      return {
+        isEligible: false,
+        reason: "This giveaway is only for new members who joined after it started.",
+      };
+    }
+  }
+
+  if (giveaway.type === "existing_members") {
+    if (!userFirstSeen) {
+      return {
+        isEligible: false,
+        reason: "Unable to verify that you were an existing member before this giveaway started.",
+      };
+    }
+
+    if (userFirstSeen >= giveaway.startTime) {
+      return {
+        isEligible: false,
+        reason: "This giveaway is only for existing members from before it started.",
+      };
+    }
+  }
+
+  // Check 3: Account age
   if (giveaway.minAccountAge && userAccountDate) {
     const ageCheck = checkAccountAge(userAccountDate, giveaway.minAccountAge);
     if (!ageCheck.isEligible) {
@@ -35,7 +69,7 @@ export async function validateParticipant(
     }
   }
 
-  // Check 3: Join date restrictions
+  // Check 4: Join date restrictions
   if (giveaway.joinDateAfter || giveaway.joinDateBefore) {
     // This checks when the user was first seen by the bot
     // A more accurate approach would track when they joined the channel

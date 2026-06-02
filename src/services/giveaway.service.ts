@@ -1,4 +1,4 @@
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   giveaways,
@@ -109,11 +109,16 @@ export async function createGiveaway(
     firstName: "Admin",
   });
 
-  // Ensure primary channel exists
-  const channelId = await upsertChannel({
-    telegramId: input.channelTelegramId,
-    name: `Channel ${input.channelTelegramId}`,
+  const existingPrimaryChannel = await db.query.channels.findFirst({
+    where: eq(channels.telegramId, input.channelTelegramId),
   });
+
+  const channelId =
+    existingPrimaryChannel?.id ??
+    (await upsertChannel({
+      telegramId: input.channelTelegramId,
+      name: `Channel ${input.channelTelegramId}`,
+    }));
 
   // Create giveaway
   const [giveaway] = await db
@@ -146,10 +151,17 @@ export async function createGiveaway(
   // Add additional channels if multi-channel
   if (input.additionalChannelIds?.length) {
     for (const additionalTgId of input.additionalChannelIds) {
-      const addChannelId = await upsertChannel({
-        telegramId: additionalTgId,
-        name: `Channel ${additionalTgId}`,
+      const existingAdditionalChannel = await db.query.channels.findFirst({
+        where: eq(channels.telegramId, additionalTgId),
       });
+
+      const addChannelId =
+        existingAdditionalChannel?.id ??
+        (await upsertChannel({
+          telegramId: additionalTgId,
+          name: `Channel ${additionalTgId}`,
+        }));
+
       await db.insert(giveawayChannels).values({
         giveawayId,
         channelId: addChannelId,
@@ -193,7 +205,7 @@ export async function listActiveGiveaways(
         eq(giveaways.channelId, channelId)
       ),
       with: { channel: true, creator: true },
-      orderBy: (g, { desc }) => [desc(g.createdAt)],
+      orderBy: desc(giveaways.createdAt),
     });
     return results as unknown as GiveawayWithRelations[];
   }
@@ -201,7 +213,7 @@ export async function listActiveGiveaways(
   const results = await db.query.giveaways.findMany({
     where: eq(giveaways.status, "active"),
     with: { channel: true, creator: true },
-    orderBy: (g, { desc }) => [desc(g.createdAt)],
+    orderBy: desc(giveaways.createdAt),
   });
   return results as unknown as GiveawayWithRelations[];
 }
@@ -221,7 +233,7 @@ export async function listGiveawaysByCreator(
   const results = await db.query.giveaways.findMany({
     where: eq(giveaways.createdBy, user.id),
     with: { channel: true, creator: true },
-    orderBy: (g, { desc }) => [desc(g.createdAt)],
+    orderBy: desc(giveaways.createdAt),
   });
   return results as unknown as GiveawayWithRelations[];
 }
@@ -279,7 +291,7 @@ export async function getGiveawayChannels(
     with: { channel: true },
   });
 
-  return results.map((r) => ({
+  return results.map((r: any) => ({
     id: r.channel.id,
     telegramId: r.channel.telegramId,
     name: r.channel.name,

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { winners, users } from "../db/schema.js";
 import type { WinnerWithUser, FairnessProof } from "../types/index.js";
@@ -214,7 +214,7 @@ export async function getWinners(
   const results = await db.query.winners.findMany({
     where: eq(winners.giveawayId, giveawayId),
     with: { user: true },
-    orderBy: (w, { asc }) => [asc(w.position)],
+    orderBy: asc(winners.position),
   });
 
   return results as unknown as WinnerWithUser[];

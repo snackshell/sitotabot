@@ -2,9 +2,10 @@ import { Composer, InlineKeyboard } from "grammy";
 import type { BotContext } from "../types/index.js";
 import { upsertUser } from "../services/giveaway.service.js";
 import {
+  getParticipantByGiveawayAndUser,
   registerParticipant,
-  isParticipantRegistered,
   getUserByTelegramId,
+  updateParticipantEligibility,
 } from "../services/participant.service.js";
 import { getGiveaway, getGiveawayChannels } from "../services/giveaway.service.js";
 import { validateParticipant } from "../services/validation.service.js";
@@ -90,12 +91,10 @@ async function handleJoinGiveaway(
     return;
   }
 
-  // Check if already registered
   const user = await getUserByTelegramId(BigInt(userId));
-  if (user && (await isParticipantRegistered(giveawayId, user.id))) {
-    await ctx.reply("✅ You're already registered for this giveaway! Good luck! 🍀");
-    return;
-  }
+  const existingParticipant = user
+    ? await getParticipantByGiveawayAndUser(giveawayId, user.id)
+    : null;
 
   // Get all required channels
   const requiredChannels = await getGiveawayChannels(giveawayId);
@@ -107,7 +106,8 @@ async function handleJoinGiveaway(
     giveaway,
     channelTgIds,
     userId,
-    null // We don't have account creation date from Telegram API
+    null, // We don't have account creation date from Telegram API
+    user?.firstSeen ?? null
   );
 
   // Upsert and get internal user ID
@@ -117,6 +117,26 @@ async function handleJoinGiveaway(
     firstName: ctx.from?.first_name ?? "Unknown",
     lastName: ctx.from?.last_name ?? null,
   });
+
+  if (existingParticipant) {
+    await updateParticipantEligibility(
+      giveawayId,
+      internalUserId,
+      eligibility.isEligible,
+      eligibility.reason
+    );
+
+    if (!eligibility.isEligible) {
+      await ctx.reply(
+        `⚠️ You're registered but still not eligible:\n${escapeHtml(eligibility.reason ?? "Unknown reason")}`,
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+
+    await ctx.reply("✅ You're in! Good luck! 🍀");
+    return;
+  }
 
   // Register (even if ineligible — mark as such)
   const participantId = await registerParticipant(

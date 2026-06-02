@@ -1,4 +1,4 @@
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, asc } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { participants, users, giveaways } from "../db/schema.js";
 import type { ParticipantWithUser } from "../types/index.js";
@@ -64,6 +64,24 @@ export async function registerParticipant(
 }
 
 /**
+ * Get a participant record for a specific giveaway and user.
+ */
+export async function getParticipantByGiveawayAndUser(
+  giveawayId: string,
+  userId: number
+): Promise<ParticipantWithUser | null> {
+  const participant = await db.query.participants.findFirst({
+    where: and(
+      eq(participants.giveawayId, giveawayId),
+      eq(participants.userId, userId)
+    ),
+    with: { user: true },
+  });
+
+  return participant as unknown as ParticipantWithUser | null;
+}
+
+/**
  * Get all participants for a giveaway, with user data.
  */
 export async function getParticipants(
@@ -72,7 +90,7 @@ export async function getParticipants(
   const results = await db.query.participants.findMany({
     where: eq(participants.giveawayId, giveawayId),
     with: { user: true },
-    orderBy: (p, { asc }) => [asc(p.joinedAt)],
+    orderBy: asc(participants.joinedAt),
   });
 
   return results as unknown as ParticipantWithUser[];
@@ -90,7 +108,7 @@ export async function getEligibleParticipants(
       eq(participants.isEligible, true)
     ),
     with: { user: true },
-    orderBy: (p, { asc }) => [asc(p.joinedAt)],
+    orderBy: asc(participants.joinedAt),
   });
 
   return results as unknown as ParticipantWithUser[];
@@ -151,7 +169,13 @@ export async function updateParticipantEligibility(
  */
 export async function getUserByTelegramId(
   telegramId: bigint
-): Promise<{ id: number; telegramId: bigint; firstName: string; username: string | null } | null> {
+): Promise<{
+  id: number;
+  telegramId: bigint;
+  firstName: string;
+  username: string | null;
+  firstSeen: Date;
+} | null> {
   const user = await db.query.users.findFirst({
     where: eq(users.telegramId, telegramId),
   });
@@ -163,6 +187,7 @@ export async function getUserByTelegramId(
     telegramId: user.telegramId,
     firstName: user.firstName,
     username: user.username,
+    firstSeen: user.firstSeen,
   };
 }
 

@@ -1,4 +1,4 @@
-import { Bot } from "grammy";
+import { Bot, session } from "grammy";
 import { hydrate } from "@grammyjs/hydrate";
 import { conversations, createConversation } from "@grammyjs/conversations";
 import type { BotContext } from "./types/index.js";
@@ -17,6 +17,7 @@ import { rerollCommand } from "./commands/reroll.js";
 import { participantsCommand } from "./commands/participants.js";
 import { exportCommand } from "./commands/export.js";
 import { statusCommand } from "./commands/status.js";
+import { giveawaysCommand } from "./commands/giveaways.js";
 
 // Callbacks
 import { joinGiveawayCallback } from "./callbacks/join-giveaway.js";
@@ -39,6 +40,7 @@ export function createBot(): Bot<BotContext> {
 
   // ─── Plugins ───
   bot.use(hydrate());
+  bot.use(session({ initial: () => ({}) }));
   bot.use(conversations());
   bot.use(createConversation(createGiveawayFlow, "createGiveawayFlow"));
 
@@ -59,6 +61,7 @@ export function createBot(): Bot<BotContext> {
   bot.use(participantsCommand);
   bot.use(exportCommand);
   bot.use(statusCommand);
+  bot.use(giveawaysCommand);
 
   // ─── Callbacks ───
   bot.use(joinGiveawayCallback);
@@ -66,6 +69,7 @@ export function createBot(): Bot<BotContext> {
   // ─── Set bot commands menu ───
   bot.api.setMyCommands([
     { command: "start", description: "Start the bot / Join a giveaway" },
+    { command: "giveaways", description: "List all active public giveaways" },
     { command: "create_giveaway", description: "Create a new giveaway" },
     { command: "status", description: "View giveaway status" },
     { command: "participants", description: "View participant count" },

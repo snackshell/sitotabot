@@ -41,27 +41,57 @@ export function formatDate(date: Date): string {
  * Returns null if invalid.
  */
 export function parseUserDate(input: string): Date | null {
-  // Try ISO format first
-  let date = new Date(input);
-  if (!isNaN(date.getTime())) return date;
+  const trimmedInput = input.trim();
 
-  // Try common format: "YYYY-MM-DD HH:MM"
-  const match = input.match(
+  if (!trimmedInput) return null;
+
+  const commonFormatMatch = trimmedInput.match(
     /^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})$/
   );
-  if (match) {
-    const [, year, month, day, hour, minute] = match;
-    date = new Date(
+  if (commonFormatMatch) {
+    const [, year, month, day, hour, minute] = commonFormatMatch;
+    const yearNumber = parseInt(year!, 10);
+    const monthNumber = parseInt(month!, 10);
+    const dayNumber = parseInt(day!, 10);
+    const hourNumber = parseInt(hour!, 10);
+    const minuteNumber = parseInt(minute!, 10);
+
+    if (
+      monthNumber < 1 ||
+      monthNumber > 12 ||
+      dayNumber < 1 ||
+      hourNumber > 23 ||
+      minuteNumber > 59
+    ) {
+      return null;
+    }
+
+    const date = new Date(
       Date.UTC(
-        parseInt(year!),
-        parseInt(month!) - 1,
-        parseInt(day!),
-        parseInt(hour!),
-        parseInt(minute!)
+        yearNumber,
+        monthNumber - 1,
+        dayNumber,
+        hourNumber,
+        minuteNumber
       )
     );
-    if (!isNaN(date.getTime())) return date;
+
+    if (
+      date.getUTCFullYear() === yearNumber &&
+      date.getUTCMonth() === monthNumber - 1 &&
+      date.getUTCDate() === dayNumber &&
+      date.getUTCHours() === hourNumber &&
+      date.getUTCMinutes() === minuteNumber
+    ) {
+      return date;
+    }
+
+    return null;
   }
+
+  // Try ISO format first
+  const date = new Date(trimmedInput);
+  if (!isNaN(date.getTime())) return date;
 
   return null;
 }

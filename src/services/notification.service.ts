@@ -33,7 +33,19 @@ export async function announceGiveaway(
         inline_keyboard: [
           [
             {
-              text: "🎉 Join Giveaway!",
+              text: "Join Giveaway",
+              callback_data: `join_giveaway:${giveaway.id}`,
+            },
+          ],
+          [
+            {
+              text: "Check Eligibility",
+              callback_data: `check_eligibility:${giveaway.id}`,
+            },
+          ],
+          [
+            {
+              text: "Open Bot",
               url: `https://t.me/${botUsername}?start=join_${giveaway.id}`,
             },
           ],

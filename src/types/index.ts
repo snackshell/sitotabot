@@ -1,4 +1,4 @@
-import type { Context, Api } from "grammy";
+import type { Context, Api, SessionFlavor } from "grammy";
 import type { HydrateFlavor } from "@grammyjs/hydrate";
 import type { ConversationFlavor } from "@grammyjs/conversations";
 
@@ -7,7 +7,9 @@ import type { ConversationFlavor } from "@grammyjs/conversations";
 /**
  * Custom bot context with hydration and conversation support.
  */
-export type BotContext = HydrateFlavor<Context> & ConversationFlavor;
+export type BotContext = HydrateFlavor<Context> &
+  ConversationFlavor<Context> &
+  SessionFlavor<any>;
 
 // ─── Giveaway Types ───
 
