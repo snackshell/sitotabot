@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>SitotaBot Mini App</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">SitotaBot</p>
+          <h1>Giveaways</h1>
+        </div>
+        <button id="themeToggle" class="icon-button" type="button" aria-label="Toggle theme">◐</button>
+      </header>
+
+      <section class="status-strip" aria-label="Giveaway summary">
+        <article>
+          <span class="metric">3</span>
+          <span class="label">Live</span>
+        </article>
+        <article>
+          <span class="metric">128</span>
+          <span class="label">Eligible</span>
+        </article>
+        <article>
+          <span class="metric">4</span>
+          <span class="label">Channels</span>
+        </article>
+      </section>
+
+      <nav class="tabs" aria-label="Views">
+        <button class="tab active" data-view="discover" type="button">Discover</button>
+        <button class="tab" data-view="eligibility" type="button">Eligibility</button>
+        <button class="tab" data-view="admin" type="button">Admin</button>
+      </nav>
+
+      <section id="discover" class="view active">
+        <div class="section-heading">
+          <h2>Active Giveaways</h2>
+          <button class="text-button" type="button">Refresh</button>
+        </div>
+
+        <article class="giveaway-card featured">
+          <div class="card-head">
+            <div>
+              <p class="tag">Existing Members</p>
+              <h3>PS5 Console</h3>
+            </div>
+            <span class="timer">2d 6h</span>
+          </div>
+          <p class="card-copy">Eligible users must already belong to the required channel set.</p>
+          <div class="channel-row">
+            <span>@mainchannel</span>
+            <span>@drops</span>
+          </div>
+          <div class="action-row">
+            <button class="primary" data-action="join" type="button">Join</button>
+            <button class="secondary" data-action="check" type="button">Check</button>
+          </div>
+        </article>
+
+        <article class="giveaway-card">
+          <div class="card-head">
+            <div>
+              <p class="tag green">New Members</p>
+              <h3>100 USDT</h3>
+            </div>
+            <span class="timer">18h</span>
+          </div>
+          <p class="card-copy">Only users first seen after giveaway creation can qualify.</p>
+          <div class="action-row">
+            <button class="primary" data-action="join" type="button">Join</button>
+            <button class="secondary" data-action="check" type="button">Check</button>
+          </div>
+        </article>
+      </section>
+
+      <section id="eligibility" class="view">
+        <div class="section-heading">
+          <h2>Eligibility</h2>
+        </div>
+        <div class="check-panel">
+          <label for="giveawayId">Giveaway ID</label>
+          <input id="giveawayId" type="text" placeholder="Paste giveaway ID" />
+          <button id="checkEligibility" class="primary wide" type="button">Check Eligibility</button>
+        </div>
+        <div id="eligibilityResult" class="result-card">
+          <span class="result-dot"></span>
+          <div>
+            <h3>Ready to check</h3>
+            <p>Membership, audience rule, and channel requirements will be verified by the bot.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="admin" class="view">
+        <div class="section-heading">
+          <h2>Admin Tools</h2>
+        </div>
+        <div class="tool-grid">
+          <button class="tool-card" data-command="/create_giveaway" type="button">
+            <span>＋</span>
+            <strong>Create</strong>
+            <small>Start wizard</small>
+          </button>
+          <button class="tool-card" data-command="/status" type="button">
+            <span>▣</span>
+            <strong>Status</strong>
+            <small>Inspect live draw</small>
+          </button>
+          <button class="tool-card" data-command="/participants" type="button">
+            <span>☷</span>
+            <strong>Participants</strong>
+            <small>Eligibility counts</small>
+          </button>
+          <button class="tool-card" data-command="/export" type="button">
+            <span>⇩</span>
+            <strong>Export</strong>
+            <small>Download CSV</small>
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

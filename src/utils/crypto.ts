@@ -38,9 +38,24 @@ export function generateProofHash(
  * Returns an index into the participants array.
  */
 export function hashToIndex(hash: string, poolSize: number): number {
-  // Use the first 16 hex chars (64 bits) for adequate distribution
-  const value = BigInt("0x" + hash.substring(0, 16));
-  return Number(value % BigInt(poolSize));
+  if (!Number.isInteger(poolSize) || poolSize < 1) {
+    throw new Error("Pool size must be a positive integer");
+  }
+
+  const range = 1n << 256n;
+  const divisor = BigInt(poolSize);
+  const limit = range - (range % divisor);
+  let candidateHash = hash;
+
+  // Rejection sampling avoids modulo bias while staying deterministic.
+  for (let attempt = 0; ; attempt++) {
+    const value = BigInt("0x" + candidateHash);
+    if (value < limit) {
+      return Number(value % divisor);
+    }
+
+    candidateHash = sha256(`${hash}:${attempt}`);
+  }
 }
 
 /**

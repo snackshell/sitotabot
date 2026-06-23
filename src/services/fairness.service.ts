@@ -55,11 +55,13 @@ export async function generateFairnessProof(
     } catch (error) {
       log.warn(
         { error },
-        "Random.org failed, falling back to timestamp seed"
+        "Random.org failed, falling back to local cryptographic seed"
       );
-      seed = endTimestamp
+      const timePart = endTimestamp
         ? endTimestamp.toISOString()
         : new Date().toISOString();
+      const randomPart = generateRandomSeed();
+      seed = `${timePart}:${randomPart}`;
     }
   } else {
     // Use end timestamp as seed for deterministic reproducibility,

@@ -1,5 +1,9 @@
 # 🎉 SitotaBot — Telegram Growth Giveaway Bot
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
+[![Docker](https://img.shields.io/badge/Docker-Supported-blue.svg)](https://www.docker.com/)
+
 A full-featured, production-ready Telegram giveaway bot with **verifiable fairness**, anti-cheat validation, and CSV exports.
 
 ## ✨ Features
@@ -74,6 +78,26 @@ export BOT_TOKEN=your_bot_token
 # Start everything
 docker compose up -d
 ```
+
+### EC2 Deployment
+
+Use this when you want the bot, Postgres, and Mini App on one AWS instance.
+
+1. Point a real domain at the EC2 public IP.
+2. Open inbound ports `80`, `443`, and `22` in the EC2 security group.
+3. Install Docker and Docker Compose on the instance.
+4. Copy this repo to the instance.
+5. Set environment variables in `.env`:
+   - `BOT_TOKEN`
+   - `DOMAIN=your-domain.com`
+   - `WEBHOOK_SECRET` if you want one
+6. Start the stack:
+
+```bash
+docker compose -f docker-compose.ec2.yml up -d --build
+```
+
+The bot will run in webhook mode behind Caddy, and the Mini App will be served over HTTPS at `https://your-domain.com`.
 
 ## 📖 Bot Commands
 
@@ -178,6 +202,14 @@ npm run test:watch
 ```bash
 docker compose up -d
 ```
+
+## 🤝 Contributing
+
+Contributions are always welcome! Please read the [contribution guidelines](CONTRIBUTING.md) first.
+
+## 🛡️ Security
+
+If you discover a security vulnerability within SitotaBot, please review our [Security Policy](SECURITY.md) for information on how to responsibly disclose it.
 
 ## 📄 License
 

@@ -60,6 +60,8 @@ describe("createGiveawayFlow", () => {
       startTime: new Date("2026-06-02T00:00:00.000Z"),
       endTime: new Date("2026-06-15T18:00:00.000Z"),
       maxWinners: 3,
+      creatorContactUsername: "admin",
+      winnersPublic: true,
       minAccountAge: null,
       joinDateAfter: null,
       joinDateBefore: null,
@@ -104,7 +106,7 @@ describe("createGiveawayFlow", () => {
     };
 
     const ctx: any = {
-      from: { id: 123 },
+      from: { id: 123, username: "admin" },
       chat: { id: 123, type: "private" },
       me: { username: "sitotabot" },
       api,
@@ -125,12 +127,20 @@ describe("createGiveawayFlow", () => {
         .mockResolvedValueOnce(
           makeMessageResponse("2026-06-15 18:00", messageReplies)
         )
-        .mockResolvedValueOnce(makeMessageResponse("3", messageReplies)),
+        .mockResolvedValueOnce(makeMessageResponse("3", messageReplies))
+        .mockResolvedValueOnce(makeMessageResponse("me", messageReplies)),
       waitForCallbackQuery: vi
         .fn()
         .mockResolvedValueOnce(
           Object.assign(makeCallbackResponse(["type:all_members", "all_members"]), {
             match: ["type:all_members", "all_members"],
+            editMessageText: vi.fn(async (text: string) => {
+              edits.push(text);
+            }),
+          })
+        )
+        .mockResolvedValueOnce(
+          Object.assign(makeCallbackResponse("winners_public"), {
             editMessageText: vi.fn(async (text: string) => {
               edits.push(text);
             }),
@@ -159,6 +169,8 @@ describe("createGiveawayFlow", () => {
         createdByTelegramId: 123n,
         startTime: expect.any(Date),
         endTime: expect.any(Date),
+        creatorContactUsername: "admin",
+        winnersPublic: true,
       })
     );
     expect(mocks.announceGiveaway).toHaveBeenCalledTimes(1);
@@ -188,7 +200,7 @@ describe("createGiveawayFlow", () => {
     };
 
     const ctx: any = {
-      from: { id: 123 },
+      from: { id: 123, username: "admin" },
       chat: { id: 123, type: "private" },
       me: { username: "sitotabot" },
       api,
@@ -209,12 +221,20 @@ describe("createGiveawayFlow", () => {
         .mockResolvedValueOnce(
           makeMessageResponse("2026-06-15 18:00", messageReplies)
         )
-        .mockResolvedValueOnce(makeMessageResponse("3", messageReplies)),
+        .mockResolvedValueOnce(makeMessageResponse("3", messageReplies))
+        .mockResolvedValueOnce(makeMessageResponse("@admin", messageReplies)),
       waitForCallbackQuery: vi
         .fn()
         .mockResolvedValueOnce(
           Object.assign(makeCallbackResponse(["type:all_members", "all_members"]), {
             match: ["type:all_members", "all_members"],
+            editMessageText: vi.fn(async (text: string) => {
+              edits.push(text);
+            }),
+          })
+        )
+        .mockResolvedValueOnce(
+          Object.assign(makeCallbackResponse("winners_private"), {
             editMessageText: vi.fn(async (text: string) => {
               edits.push(text);
             }),
@@ -236,5 +256,106 @@ describe("createGiveawayFlow", () => {
     expect(mocks.announceGiveaway).not.toHaveBeenCalled();
     expect(mocks.scheduleGiveawayEnd).toHaveBeenCalledTimes(1);
     expect(edits.some((text) => text.includes("Announcement: Skipped"))).toBe(true);
+  });
+
+  it("allows extra required channels where the creator is not an admin", async () => {
+    const replies: string[] = [];
+    const messageReplies: string[] = [];
+    const edits: string[] = [];
+    const api = {
+      getMe: vi.fn(async () => ({ id: 99, username: "sitotabot" })),
+      getChat: vi.fn(async (chatId: string) => {
+        if (chatId === "@partnerchannel") {
+          return {
+            id: -2002,
+            type: "channel",
+            title: "Partner Channel",
+            username: "partnerchannel",
+          };
+        }
+
+        return {
+          id: -1001,
+          type: "channel",
+          title: "My Channel",
+          username: "mychannel",
+        };
+      }),
+      getChatMember: vi.fn(async (chatId: number, userId: number) => {
+        if (chatId === -1001 && userId === 123) {
+          return { status: "creator" };
+        }
+
+        if (userId === 99) {
+          return { status: "administrator", can_post_messages: true };
+        }
+
+        return { status: "left" };
+      }),
+    };
+
+    const ctx: any = {
+      from: { id: 123, username: "admin" },
+      chat: { id: 123, type: "private" },
+      me: { username: "sitotabot" },
+      api,
+      reply: vi.fn(async (text: string) => {
+        replies.push(text);
+        return { message_id: replies.length };
+      }),
+    };
+
+    const conversation: any = {
+      now: vi.fn(async () => Date.UTC(2026, 5, 2, 0, 0)),
+      log: vi.fn(async () => undefined),
+      external: vi.fn(async (op: any) => op({ api })),
+      waitFor: vi
+        .fn()
+        .mockResolvedValueOnce(makeMessageResponse("PS5 Console", messageReplies))
+        .mockResolvedValueOnce(makeMessageResponse("@mychannel", messageReplies))
+        .mockResolvedValueOnce(makeMessageResponse("@partnerchannel", messageReplies))
+        .mockResolvedValueOnce(
+          makeMessageResponse("2026-06-15 18:00", messageReplies)
+        )
+        .mockResolvedValueOnce(makeMessageResponse("3", messageReplies))
+        .mockResolvedValueOnce(makeMessageResponse("me", messageReplies)),
+      waitForCallbackQuery: vi
+        .fn()
+        .mockResolvedValueOnce(
+          Object.assign(makeCallbackResponse(["type:multi_channel", "multi_channel"]), {
+            match: ["type:multi_channel", "multi_channel"],
+            editMessageText: vi.fn(async (text: string) => {
+              edits.push(text);
+            }),
+          })
+        )
+        .mockResolvedValueOnce(
+          Object.assign(makeCallbackResponse("winners_public"), {
+            editMessageText: vi.fn(async (text: string) => {
+              edits.push(text);
+            }),
+          })
+        )
+        .mockResolvedValueOnce(
+          Object.assign(makeCallbackResponse("confirm_create_only"), {
+            editMessageText: vi.fn(async (text: string) => {
+              edits.push(text);
+            }),
+          })
+        ),
+    };
+
+    await createGiveawayFlow(conversation, ctx);
+
+    expect(api.getChatMember).not.toHaveBeenCalledWith(-2002, 123);
+    expect(mocks.upsertChannel).toHaveBeenCalledTimes(2);
+    expect(mocks.createGiveaway).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "multi_channel",
+        channelTelegramId: -1001n,
+        additionalChannelIds: [-2002n],
+      })
+    );
+    expect(edits.some((text) => text.includes("Giveaway Created!"))).toBe(true);
   });
 });

@@ -148,6 +148,10 @@ export function formatWinnerDM(
   giveaway: GiveawayWithRelations,
   position: number
 ): string {
+  const contact = giveaway.creatorContactUsername
+    ? `@${giveaway.creatorContactUsername.replace(/^@/, "")}`
+    : "the giveaway admin";
+
   return [
     `🎉 <b>Congratulations! You WON!</b> 🎉`,
     ``,
@@ -155,9 +159,27 @@ export function formatWinnerDM(
     `🎁 <b>${escapeHtml(giveaway.prize)}</b>`,
     `📢 Channel: ${escapeHtml(giveaway.channel?.name ?? "Unknown")}`,
     ``,
-    `The admin will contact you with further details.`,
+    `Contact ${escapeHtml(contact)} to claim your prize.`,
     `Thank you for participating! 🙏`,
   ].join("\n");
+}
+
+/**
+ * Normalize a Telegram username input.
+ * Accepts @username, @ username, username, and t.me/username forms.
+ */
+export function parseTelegramUsername(input: string): string | null {
+  const trimmed = input.trim();
+  const linkMatch = trimmed.match(
+    /^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/@?\s*([A-Za-z0-9_]{5,32})\/?$/i
+  );
+
+  if (linkMatch?.[1]) {
+    return linkMatch[1];
+  }
+
+  const cleaned = trimmed.replace(/^@+\s*/, "");
+  return /^[A-Za-z0-9_]{5,32}$/.test(cleaned) ? cleaned : null;
 }
 
 /**

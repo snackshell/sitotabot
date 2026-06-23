@@ -71,7 +71,10 @@ joinGiveawayCallback.callbackQuery(/^join_giveaway:(.+)$/, async (ctx) => {
 
   if (giveaway.status !== "active") {
     await ctx.answerCallbackQuery({
-      text: "This giveaway is no longer active.",
+      text:
+        giveaway.status === "ended"
+          ? "This giveaway has ended. You can no longer join."
+          : "This giveaway is no longer active.",
       show_alert: true,
     });
     return;
@@ -100,9 +103,12 @@ joinGiveawayCallback.callbackQuery(/^join_giveaway:(.+)$/, async (ctx) => {
     );
 
     await ctx.answerCallbackQuery({
-      text: eligibility.isEligible
-        ? "You're in. Good luck!"
-        : `You're registered but still not eligible: ${eligibility.reason}`,
+      text:
+        existingParticipant.isEligible && eligibility.isEligible
+          ? "You have already joined this giveaway. Good luck!"
+          : eligibility.isEligible
+          ? "You're now eligible and in the giveaway. Good luck!"
+          : `You're registered but still not eligible: ${eligibility.reason}`,
       show_alert: true,
     });
 

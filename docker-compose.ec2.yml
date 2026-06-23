@@ -1,5 +1,4 @@
 services:
-  # ── PostgreSQL Database ──
   postgres:
     image: postgres:16-alpine
     container_name: sitotabot-db
@@ -7,8 +6,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-sitotabot}
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -18,7 +15,6 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # ── Telegram Bot ──
   bot:
     build: .
     container_name: sitotabot
@@ -29,14 +25,33 @@ services:
       BOT_TOKEN: ${BOT_TOKEN}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sitotabot}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      WEBHOOK_URL: ${WEBHOOK_URL:-}
-      WEBHOOK_PORT: ${WEBHOOK_PORT:-8443}
+      WEBHOOK_URL: https://${DOMAIN}
+      WEBHOOK_PORT: 8443
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
       RANDOM_ORG_API_KEY: ${RANDOM_ORG_API_KEY:-}
+      MINI_APP_URL: https://${DOMAIN}
+    expose:
+      - "8443"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: sitotabot-caddy
+    depends_on:
+      - bot
+    environment:
+      DOMAIN: ${DOMAIN}
     ports:
-      - "${WEBHOOK_PORT:-8443}:${WEBHOOK_PORT:-8443}"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./web:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
     restart: unless-stopped
 
 volumes:
   pgdata:
-    driver: local
+  caddy_data:
+  caddy_config:

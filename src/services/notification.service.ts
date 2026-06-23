@@ -153,6 +153,54 @@ export async function notifyWinners(
   return { notified, failed };
 }
 
+function formatWinnerList(winnerUsers: WinnerWithUser[]): string {
+  return winnerUsers
+    .map((winner) => {
+      const username = winner.user.username ? `@${winner.user.username}` : null;
+      const label = username ?? winner.user.firstName;
+      return `#${winner.position}: ${label} (${winner.user.telegramId})`;
+    })
+    .join("\n");
+}
+
+/**
+ * Send the creator the full winner list.
+ */
+export async function notifyCreatorWinners(
+  api: Api,
+  giveaway: GiveawayWithRelations,
+  winnerUsers: WinnerWithUser[]
+): Promise<void> {
+  if (!giveaway.creator?.telegramId) return;
+
+  const message = [
+    `🏆 <b>Winners selected</b>`,
+    ``,
+    `<b>Prize:</b> ${giveaway.prize}`,
+    `<b>Channel:</b> ${giveaway.channel?.name ?? "Unknown"}`,
+    `<b>Winner Count:</b> ${winnerUsers.length}`,
+    `<b>Visibility:</b> ${giveaway.winnersPublic ? "Public" : "Private"}`,
+    giveaway.creatorContactUsername
+      ? `<b>Claim Contact:</b> @${giveaway.creatorContactUsername.replace(/^@/, "")}`
+      : null,
+    ``,
+    formatWinnerList(winnerUsers),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    await api.sendMessage(Number(giveaway.creator.telegramId), message, {
+      parse_mode: "HTML",
+    });
+  } catch (error) {
+    log.error(
+      { error, giveawayId: giveaway.id },
+      "Failed to notify creator about winners"
+    );
+  }
+}
+
 /**
  * Notify the admin about a giveaway event.
  */

@@ -15,6 +15,8 @@ function makeGiveaway(
     startTime: new Date("2026-06-02T10:00:00.000Z"),
     endTime: new Date("2026-06-15T18:00:00.000Z"),
     maxWinners: 1,
+    creatorContactUsername: "admin",
+    winnersPublic: false,
     minAccountAge: null,
     joinDateAfter: null,
     joinDateBefore: null,

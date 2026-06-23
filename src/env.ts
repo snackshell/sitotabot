@@ -14,6 +14,9 @@ const envSchema = z.object({
   WEBHOOK_PORT: z.coerce.number().optional().default(8443),
   WEBHOOK_SECRET: z.string().optional().default(""),
 
+  // Optional: Telegram Mini App
+  MINI_APP_URL: z.string().url().optional().or(z.literal("")).default(""),
+
   // Logging
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])

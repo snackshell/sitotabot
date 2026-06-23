@@ -2,7 +2,7 @@ import type { Api } from "grammy";
 import type { ScheduledTask, GiveawayWithRelations } from "../types/index.js";
 import { drawWinners } from "./winner.service.js";
 import { getGiveaway, getOverdueGiveaways, getPendingGiveaways } from "./giveaway.service.js";
-import { announceWinners, notifyWinners, notifyAdmin } from "./notification.service.js";
+import { announceWinners, notifyWinners, notifyAdmin, notifyCreatorWinners } from "./notification.service.js";
 import { getWinners } from "./winner.service.js";
 import { msUntil } from "../utils/date.js";
 import { createChildLogger } from "../utils/logger.js";
@@ -84,11 +84,16 @@ async function processGiveawayEnd(
     const giveaway = await getGiveaway(giveawayId);
     if (!giveaway) return;
 
-    // Announce winners in channel
-    await announceWinners(api, giveaway, result.winnerUsers);
+    // Announce winners in channel only for public winner giveaways.
+    if (giveaway.winnersPublic) {
+      await announceWinners(api, giveaway, result.winnerUsers);
+    }
 
     // DM winners
     const dmResult = await notifyWinners(api, giveaway, result.winnerUsers);
+
+    // DM creator with winner details for both public and private giveaways.
+    await notifyCreatorWinners(api, giveaway, result.winnerUsers);
 
     // Notify admin
     if (giveaway.creator) {

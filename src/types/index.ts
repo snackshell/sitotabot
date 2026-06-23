@@ -30,6 +30,8 @@ export interface GiveawayCreateInput {
   startTime: Date;
   endTime: Date;
   maxWinners: number;
+  creatorContactUsername?: string | null;
+  winnersPublic?: boolean;
   minAccountAge?: number;
   joinDateAfter?: Date;
   joinDateBefore?: Date;
@@ -47,6 +49,8 @@ export interface GiveawayWithRelations {
   startTime: Date;
   endTime: Date;
   maxWinners: number;
+  creatorContactUsername: string | null;
+  winnersPublic: boolean;
   minAccountAge: number | null;
   joinDateAfter: Date | null;
   joinDateBefore: Date | null;

@@ -1,0 +1,17 @@
+{$DOMAIN} {
+  encode zstd gzip
+
+  handle /webhook* {
+    reverse_proxy bot:8443
+  }
+
+  handle /health* {
+    reverse_proxy bot:8443
+  }
+
+  handle {
+    root * /srv
+    try_files {path} /index.html
+    file_server
+  }
+}

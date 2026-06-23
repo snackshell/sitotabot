@@ -79,6 +79,24 @@ describe("hashToIndex", () => {
     const hash = sha256("test");
     expect(hashToIndex(hash, 1)).toBe(0);
   });
+
+  it("should reject invalid pool sizes", () => {
+    const hash = sha256("test");
+    expect(() => hashToIndex(hash, 0)).toThrow(
+      "Pool size must be a positive integer"
+    );
+    expect(() => hashToIndex(hash, -1)).toThrow(
+      "Pool size must be a positive integer"
+    );
+  });
+
+  it("should use SHA-256-sized hashes for selection", () => {
+    const hash = sha256("full_hash_test");
+    expect(hash).toHaveLength(64);
+    const index = hashToIndex(hash, 97);
+    expect(index).toBeGreaterThanOrEqual(0);
+    expect(index).toBeLessThan(97);
+  });
 });
 
 describe("selectWinnersFromHash", () => {

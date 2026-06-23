@@ -35,6 +35,7 @@ helpCommand.command("help", async (ctx) => {
     `<b>ℹ️ General</b>`,
     ``,
     `/start — Start the bot / Join a giveaway`,
+    `/app — Open the Mini App dashboard`,
     `/help — Show this help message`,
     ``,
     `<b>🔐 Fairness</b>`,

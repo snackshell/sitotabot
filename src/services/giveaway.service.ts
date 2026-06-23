@@ -132,6 +132,8 @@ export async function createGiveaway(
       startTime: input.startTime,
       endTime: input.endTime,
       maxWinners: input.maxWinners,
+      creatorContactUsername: input.creatorContactUsername ?? null,
+      winnersPublic: input.winnersPublic ?? false,
       minAccountAge: input.minAccountAge ?? null,
       joinDateAfter: input.joinDateAfter ?? null,
       joinDateBefore: input.joinDateBefore ?? null,
@@ -215,6 +217,23 @@ export async function listActiveGiveaways(
     with: { channel: true, creator: true },
     orderBy: desc(giveaways.createdAt),
   });
+  return results as unknown as GiveawayWithRelations[];
+}
+
+/**
+ * List ended giveaways whose winner results are public.
+ */
+export async function listPublicEndedGiveaways(): Promise<GiveawayWithRelations[]> {
+  const results = await db.query.giveaways.findMany({
+    where: and(
+      eq(giveaways.status, "ended"),
+      eq(giveaways.winnersPublic, true)
+    ),
+    with: { channel: true, creator: true },
+    orderBy: desc(giveaways.updatedAt),
+    limit: 10,
+  });
+
   return results as unknown as GiveawayWithRelations[];
 }
 

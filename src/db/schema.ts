@@ -81,6 +81,8 @@ export const giveaways = pgTable("giveaways", {
   startTime: timestamp("start_time", { withTimezone: true }).notNull(),
   endTime: timestamp("end_time", { withTimezone: true }).notNull(),
   maxWinners: integer("max_winners").default(1).notNull(),
+  creatorContactUsername: text("creator_contact_username"),
+  winnersPublic: boolean("winners_public").default(false).notNull(),
   minAccountAge: integer("min_account_age_days"),
   joinDateAfter: timestamp("join_date_after", { withTimezone: true }),
   joinDateBefore: timestamp("join_date_before", { withTimezone: true }),

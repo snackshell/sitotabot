@@ -11,10 +11,26 @@ import { getGiveaway, getGiveawayChannels } from "../services/giveaway.service.j
 import { validateParticipant } from "../services/validation.service.js";
 import { createChildLogger } from "../utils/logger.js";
 import { escapeHtml } from "../utils/telegram.js";
+import {
+  addRequiredChannelButtons,
+  formatRequiredChannelLines,
+  hasRequiredChannelLinks,
+} from "../utils/channel-keyboard.js";
 
 const log = createChildLogger("command:start");
 
 export const startCommand = new Composer<BotContext>();
+
+function buildRequiredChannelMarkup(
+  requiredChannels: { name: string; username: string | null }[]
+): { lines: string[]; keyboard: InlineKeyboard | undefined } {
+  const keyboard = new InlineKeyboard();
+  addRequiredChannelButtons(keyboard, requiredChannels);
+  return {
+    lines: formatRequiredChannelLines(requiredChannels),
+    keyboard: hasRequiredChannelLinks(requiredChannels) ? keyboard : undefined,
+  };
+}
 
 startCommand.command("start", async (ctx) => {
   const userId = ctx.from?.id;
@@ -86,7 +102,9 @@ async function handleJoinGiveaway(
 
   if (giveaway.status !== "active") {
     await ctx.reply(
-      `❌ This giveaway is no longer active (status: ${giveaway.status}).`
+      giveaway.status === "ended"
+        ? "❌ This giveaway has ended. You can no longer join."
+        : `❌ This giveaway is no longer active (status: ${giveaway.status}).`
     );
     return;
   }
@@ -99,6 +117,7 @@ async function handleJoinGiveaway(
   // Get all required channels
   const requiredChannels = await getGiveawayChannels(giveawayId);
   const channelTgIds = requiredChannels.map((c) => c.telegramId);
+  const requiredChannelMarkup = buildRequiredChannelMarkup(requiredChannels);
 
   // Validate participant
   const eligibility = await validateParticipant(
@@ -126,15 +145,32 @@ async function handleJoinGiveaway(
       eligibility.reason
     );
 
+    if (existingParticipant.isEligible && eligibility.isEligible) {
+      await ctx.reply("✅ You have already joined this giveaway. Good luck! 🍀");
+      return;
+    }
+
     if (!eligibility.isEligible) {
       await ctx.reply(
-        `⚠️ You're registered but still not eligible:\n${escapeHtml(eligibility.reason ?? "Unknown reason")}`,
-        { parse_mode: "HTML" }
+        [
+          `⚠️ You're registered but still not eligible:`,
+          escapeHtml(eligibility.reason ?? "Unknown reason"),
+          ``,
+          requiredChannelMarkup.lines.length > 0
+            ? `<b>Required Channels:</b>\n${requiredChannelMarkup.lines.join("\n")}`
+            : null,
+          `Join every required channel, then tap Join Giveaway again.`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        { parse_mode: "HTML", reply_markup: requiredChannelMarkup.keyboard }
       );
       return;
     }
 
-    await ctx.reply("✅ You're in! Good luck! 🍀");
+    await ctx.reply("✅ You're now eligible and in the giveaway. Good luck! 🍀", {
+      reply_markup: requiredChannelMarkup.keyboard,
+    });
     return;
   }
 
@@ -153,18 +189,21 @@ async function handleJoinGiveaway(
 
   if (!eligibility.isEligible) {
     await ctx.reply(
-      `⚠️ You've been registered but marked as <b>ineligible</b>:\n${escapeHtml(eligibility.reason ?? "Unknown reason")}\n\nYou may still be eligible if conditions change before the draw.`,
-      { parse_mode: "HTML" }
+      [
+        `⚠️ You've been registered but marked as <b>ineligible</b>:`,
+        escapeHtml(eligibility.reason ?? "Unknown reason"),
+        ``,
+        requiredChannelMarkup.lines.length > 0
+          ? `<b>Required Channels:</b>\n${requiredChannelMarkup.lines.join("\n")}`
+          : null,
+        `Join every required channel, then tap Join Giveaway again.`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      { parse_mode: "HTML", reply_markup: requiredChannelMarkup.keyboard }
     );
     return;
   }
-
-  const keyboard = new InlineKeyboard().url(
-    "📢 View Channel",
-    giveaway.channel?.username
-      ? `https://t.me/${giveaway.channel.username}`
-      : `tg://resolve?domain=channel`
-  );
 
   await ctx.reply(
     [
@@ -172,6 +211,9 @@ async function handleJoinGiveaway(
       ``,
       `You've successfully joined the giveaway:`,
       `🎁 <b>${escapeHtml(giveaway.prize)}</b>`,
+      requiredChannelMarkup.lines.length > 0
+        ? `<b>Required Channels:</b>\n${requiredChannelMarkup.lines.join("\n")}`
+        : null,
       ``,
       `⏰ Drawing on: ${giveaway.endTime.toLocaleString("en-US", {
         dateStyle: "medium",
@@ -180,8 +222,10 @@ async function handleJoinGiveaway(
       })} UTC`,
       ``,
       `Good luck! 🍀`,
-    ].join("\n"),
-    { parse_mode: "HTML", reply_markup: keyboard }
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    { parse_mode: "HTML", reply_markup: requiredChannelMarkup.keyboard }
   );
 
   log.info(

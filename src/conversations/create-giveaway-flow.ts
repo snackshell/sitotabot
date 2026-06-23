@@ -6,7 +6,7 @@ import { getGiveaway } from "../services/giveaway.service.js";
 import { scheduleGiveawayEnd } from "../services/scheduler.service.js";
 import { activateGiveaway } from "../services/giveaway.service.js";
 import { parseUserDate, formatDate } from "../utils/date.js";
-import { escapeHtml } from "../utils/telegram.js";
+import { escapeHtml, parseTelegramUsername } from "../utils/telegram.js";
 import { createChildLogger } from "../utils/logger.js";
 import { InlineKeyboard } from "grammy";
 
@@ -206,6 +206,7 @@ export async function createGiveawayFlow(
       [
         `<b>Additional Required Channels</b>`,
         `Send extra channel usernames separated by commas or new lines.`,
+        `I only need to be an admin in these extra channels; you do not need to be an admin there.`,
         ``,
         `Example: <code>@channel_one, @channel_two</code>`,
         `Send <code>none</code> if there are no extra channels.`,
@@ -260,11 +261,6 @@ export async function createGiveawayFlow(
             throw new Error(`I cannot post in ${channelInput}.`);
           }
 
-          const userMember = await ctx.api.getChatMember(chat.id, userId);
-          if (userMember.status !== "administrator" && userMember.status !== "creator") {
-            throw new Error(`You are not an admin in ${channelInput}.`);
-          }
-
           const telegramId = BigInt(chat.id);
           if (telegramId === channelTelegramId || additionalChannelTelegramIds.includes(telegramId)) {
             continue;
@@ -289,7 +285,7 @@ export async function createGiveawayFlow(
           error: error instanceof Error ? error.message : error,
         });
         await extraChannelsResponse.reply(
-          "❌ Could not verify one of those channels. Make sure I am an admin there, you are an admin there, and try again or send none."
+          "❌ Could not verify one of those channels. Make sure I am an admin there and try again, or send none."
         );
       }
     }
@@ -387,7 +383,75 @@ export async function createGiveawayFlow(
     }
   }
 
-  // ─── Step 6: Confirm ───
+  // ─── Step 6: Creator Contact ───
+  await ctx.reply(
+    [
+      `✅ Winners: <b>${maxWinners}</b>`,
+      ``,
+      `<b>Creator Contact</b>`,
+      `Send the Telegram username winners should contact, e.g. <code>@adminusername</code>.`,
+      ctx.from?.username
+        ? `Send <code>me</code> to use @${escapeHtml(ctx.from.username)}.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    { parse_mode: "HTML" }
+  );
+
+  let creatorContactUsername: string | null = null;
+  while (!creatorContactUsername) {
+    await conversation.log("waiting for creator contact username");
+    const contactResponse = await conversation.waitFor("message:text");
+    const text = contactResponse.message.text.trim();
+    await conversation.log("received creator contact username", { text });
+
+    if (text === "/cancel") {
+      await contactResponse.reply("❌ Giveaway creation cancelled.");
+      return;
+    }
+
+    if (text.toLowerCase() === "me" && ctx.from?.username) {
+      creatorContactUsername = ctx.from.username;
+      break;
+    }
+
+    const username = parseTelegramUsername(text);
+    if (username) {
+      creatorContactUsername = username;
+    } else {
+      await contactResponse.reply(
+        "❌ Please send a valid Telegram username like @adminusername, without spaces inside the name."
+      );
+    }
+  }
+
+  // ─── Step 7: Winner Visibility ───
+  const visibilityKeyboard = new InlineKeyboard()
+    .text("Public Winners", "winners_public")
+    .row()
+    .text("Private Winners", "winners_private");
+
+  await ctx.reply(
+    [
+      `✅ Contact: <b>@${escapeHtml(creatorContactUsername)}</b>`,
+      ``,
+      `<b>Winner Visibility</b>`,
+      `Public: winners are announced and anyone can view them in the bot.`,
+      `Private: only you and the winners are notified.`,
+    ].join("\n"),
+    { parse_mode: "HTML", reply_markup: visibilityKeyboard }
+  );
+
+  const visibilityCallback = await conversation.waitForCallbackQuery([
+    "winners_public",
+    "winners_private",
+  ]);
+  await visibilityCallback.answerCallbackQuery();
+  const winnersPublic = visibilityCallback.match === "winners_public";
+  await conversation.log("winner visibility selected", { winnersPublic });
+
+  // ─── Step 8: Confirm ───
   const startTime = new Date();
 
   const confirmKeyboard = new InlineKeyboard()
@@ -407,6 +471,8 @@ export async function createGiveawayFlow(
       `📅 <b>Start:</b> Now`,
       `📅 <b>End:</b> ${formatDate(endTime)}`,
       `🏆 <b>Winners:</b> ${maxWinners}`,
+      `👤 <b>Winner Contact:</b> @${escapeHtml(creatorContactUsername)}`,
+      `👁 <b>Winner Visibility:</b> ${winnersPublic ? "Public" : "Private"}`,
       ``,
       `Create this giveaway?`,
     ].join("\n"),
@@ -443,6 +509,8 @@ export async function createGiveawayFlow(
       channelTelegramId: channelTelegramId.toString(),
         maxWinners,
         additionalChannels: additionalChannelTelegramIds.map((id) => id.toString()),
+        creatorContactUsername,
+        winnersPublic,
       });
     const giveawayId = await createGiveaway({
       prize,
@@ -452,6 +520,8 @@ export async function createGiveawayFlow(
       startTime,
       endTime,
       maxWinners,
+      creatorContactUsername,
+      winnersPublic,
       createdByTelegramId: BigInt(userId),
     });
 
@@ -499,6 +569,8 @@ export async function createGiveawayFlow(
           : `📢 Announcement: Skipped`,
         `⏰ Ends: ${formatDate(endTime)}`,
         `🏆 Winners: ${maxWinners}`,
+        `👁 Winner visibility: ${winnersPublic ? "Public" : "Private"}`,
+        `👤 Winner contact: @${escapeHtml(creatorContactUsername)}`,
         ``,
         `The giveaway is now <b>LIVE</b>! 🟢`,
         `Use /status to monitor it.`,

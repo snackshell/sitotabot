@@ -6,7 +6,7 @@ import {
 } from "../services/giveaway.service.js";
 import { getParticipantCount } from "../services/participant.service.js";
 import { getWinners } from "../services/winner.service.js";
-import { formatGiveawayStatus } from "../utils/telegram.js";
+import { escapeHtml, formatGiveawayStatus } from "../utils/telegram.js";
 import { createChildLogger } from "../utils/logger.js";
 
 const log = createChildLogger("command:status");
@@ -68,7 +68,33 @@ async function showGiveawayStatus(
   const counts = await getParticipantCount(giveawayId);
   const winnersList = await getWinners(giveawayId);
 
-  const message = formatGiveawayStatus(giveaway, counts.total, winnersList.length);
+  const requesterId = ctx.from?.id ? BigInt(ctx.from.id) : null;
+  const isCreator =
+    requesterId !== null && giveaway.creator?.telegramId === requesterId;
+  const canViewWinners =
+    giveaway.status === "ended" &&
+    winnersList.length > 0 &&
+    (isCreator || giveaway.winnersPublic);
+
+  const winnerLines = canViewWinners
+    ? [
+        ``,
+        `<b>Winners:</b>`,
+        ...winnersList.map((winner) => {
+          const label = winner.user.username
+            ? `@${winner.user.username}`
+            : winner.user.firstName;
+          return `#${winner.position}: ${escapeHtml(label)}`;
+        }),
+      ]
+    : giveaway.status === "ended" && winnersList.length > 0
+    ? [``, `<i>Winners are private for this giveaway.</i>`]
+    : [];
+
+  const message = [
+    formatGiveawayStatus(giveaway, counts.total, winnersList.length),
+    ...winnerLines,
+  ].join("\n");
 
   const keyboard = new InlineKeyboard();
   if (giveaway.status === "active") {

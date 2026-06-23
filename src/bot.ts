@@ -11,6 +11,7 @@ import { registerErrorHandler } from "./middleware/error-handler.js";
 // Commands
 import { startCommand } from "./commands/start.js";
 import { helpCommand } from "./commands/help.js";
+import { appCommand } from "./commands/app.js";
 import { createGiveawayCommand } from "./commands/create-giveaway.js";
 import { endGiveawayCommand } from "./commands/end-giveaway.js";
 import { rerollCommand } from "./commands/reroll.js";
@@ -55,6 +56,7 @@ export function createBot(): Bot<BotContext> {
   // ─── Commands ───
   bot.use(startCommand);
   bot.use(helpCommand);
+  bot.use(appCommand);
   bot.use(createGiveawayCommand);
   bot.use(endGiveawayCommand);
   bot.use(rerollCommand);
@@ -69,6 +71,7 @@ export function createBot(): Bot<BotContext> {
   // ─── Set bot commands menu ───
   bot.api.setMyCommands([
     { command: "start", description: "Start the bot / Join a giveaway" },
+    { command: "app", description: "Open the Mini App dashboard" },
     { command: "giveaways", description: "List all active public giveaways" },
     { command: "create_giveaway", description: "Create a new giveaway" },
     { command: "status", description: "View giveaway status" },
