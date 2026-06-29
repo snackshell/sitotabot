@@ -112,6 +112,18 @@ The bot will run in webhook mode behind Caddy, and the Mini App will be served o
 | `/export [id] [type]` | Download participants/winners CSV |
 | `/help` | Full command reference |
 
+## Giveaway Admin Controls
+
+Use `/status` to open creator-only controls for each giveaway.
+
+- **Extend End Time** - Update an active giveaway's end date in Ethiopian time (`YYYY-MM-DD HH:MM`) and reschedule the automatic ending.
+- **Post Giveaway Again** - Repost the full active giveaway announcement to the giveaway channel whenever needed.
+- **Post Status Update** - Push the current giveaway status, participant count, and winner count to the channel.
+- **Retry Notifications** - Retry winner DMs and channel winner announcements for ended giveaways.
+- **Delete** - Remove ended or cancelled giveaways from the creator list and clean up related giveaway records.
+
+Giveaway date input is interpreted as Ethiopian time (`Africa/Addis_Ababa`, UTC+3). For example, `2026-06-29 18:00` means 6:00 PM in Ethiopia.
+
 ## 🔐 How Fairness Works
 
 SitotaBot uses **SHA-256 hash chaining** for verifiable random winner selection:

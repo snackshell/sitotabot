@@ -5,6 +5,7 @@ import {
   formatWinnerAnnouncement,
   formatWinnerDM,
   formatGiveawayAnnouncement,
+  formatGiveawayStatus,
 } from "../utils/telegram.js";
 import { addRequiredChannelButtons } from "../utils/channel-keyboard.js";
 import { getGiveawayChannels } from "./giveaway.service.js";
@@ -174,6 +175,40 @@ export async function announceWinners(
       { error: serializeTelegramError(error), giveawayId: giveaway.id },
       "Failed to announce winners"
     );
+  }
+}
+
+/**
+ * Announce the current giveaway status in its channel.
+ */
+export async function announceGiveawayStatus(
+  api: Api,
+  giveaway: GiveawayWithRelations,
+  participantCount: number,
+  winnersCount: number
+): Promise<boolean> {
+  try {
+    const channelTgId = giveaway.channel?.telegramId;
+    if (!channelTgId) {
+      log.error({ giveawayId: giveaway.id }, "No channel for status announcement");
+      return false;
+    }
+
+    await sendHtmlMessageWithPlainTextFallback(
+      api,
+      Number(channelTgId),
+      formatGiveawayStatus(giveaway, participantCount, winnersCount),
+      { giveawayId: giveaway.id, chatId: channelTgId.toString() }
+    );
+
+    log.info({ giveawayId: giveaway.id }, "Giveaway status announced in channel");
+    return true;
+  } catch (error) {
+    log.error(
+      { error: serializeTelegramError(error), giveawayId: giveaway.id },
+      "Failed to announce giveaway status"
+    );
+    return false;
   }
 }
 

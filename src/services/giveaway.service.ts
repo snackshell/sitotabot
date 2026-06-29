@@ -273,6 +273,24 @@ export async function updateGiveawayStatus(
 }
 
 /**
+ * Update the scheduled end time for a giveaway.
+ */
+export async function updateGiveawayEndTime(
+  id: string,
+  endTime: Date
+): Promise<void> {
+  await db
+    .update(giveaways)
+    .set({ endTime, updatedAt: new Date() })
+    .where(eq(giveaways.id, id));
+
+  log.info(
+    { giveawayId: id, endTime: endTime.toISOString() },
+    "Giveaway end time updated"
+  );
+}
+
+/**
  * Delete a giveaway and its dependent giveaway data.
  */
 export async function deleteGiveaway(id: string): Promise<void> {

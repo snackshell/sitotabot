@@ -4,21 +4,36 @@ import {
   deleteGiveaway,
   getGiveaway,
   listGiveawaysByCreator,
+  updateGiveawayEndTime,
 } from "../services/giveaway.service.js";
 import { getParticipantCount } from "../services/participant.service.js";
 import { getWinners } from "../services/winner.service.js";
 import {
+  announceGiveaway,
+  announceGiveawayStatus,
   announceWinners,
   notifyCreatorWinners,
   notifyWinners,
 } from "../services/notification.service.js";
 import { escapeHtml, formatGiveawayStatus } from "../utils/telegram.js";
 import { createChildLogger } from "../utils/logger.js";
-import { cancelSchedule } from "../services/scheduler.service.js";
+import { cancelSchedule, scheduleGiveawayEnd } from "../services/scheduler.service.js";
+import { formatDate, parseUserDate } from "../utils/date.js";
 
 const log = createChildLogger("command:status");
 
 export const statusCommand = new Composer<BotContext>();
+
+async function getCreatorGiveaway(ctx: BotContext, giveawayId: string) {
+  const giveaway = await getGiveaway(giveawayId);
+  const requesterId = ctx.from?.id ? BigInt(ctx.from.id) : null;
+
+  if (!giveaway || requesterId === null || giveaway.creator?.telegramId !== requesterId) {
+    return null;
+  }
+
+  return giveaway;
+}
 
 statusCommand.command("status", async (ctx) => {
   const userId = ctx.from?.id;
@@ -59,6 +74,71 @@ statusCommand.command("status", async (ctx) => {
   await ctx.reply(
     `📊 <b>Your Giveaways</b>\n\nSelect a giveaway to view its status:`,
     { parse_mode: "HTML", reply_markup: keyboard }
+  );
+});
+
+statusCommand.on("message:text", async (ctx, next) => {
+  const giveawayId = ctx.session.pendingExtendGiveawayId;
+  if (!giveawayId) {
+    await next();
+    return;
+  }
+
+  const text = ctx.message.text.trim();
+  if (text === "/cancel") {
+    delete ctx.session.pendingExtendGiveawayId;
+    await ctx.reply("Giveaway extension cancelled.");
+    return;
+  }
+
+  const giveaway = await getCreatorGiveaway(ctx, giveawayId);
+  if (!giveaway) {
+    delete ctx.session.pendingExtendGiveawayId;
+    await ctx.reply("Giveaway not found or you no longer have access to it.");
+    return;
+  }
+
+  if (giveaway.status !== "active") {
+    delete ctx.session.pendingExtendGiveawayId;
+    await ctx.reply("Only active giveaways can be extended.");
+    return;
+  }
+
+  const newEndTime = parseUserDate(text);
+  if (!newEndTime) {
+    await ctx.reply(
+      "Invalid date. Send the new end date as YYYY-MM-DD HH:MM in Ethiopian time, or /cancel."
+    );
+    return;
+  }
+
+  if (newEndTime.getTime() <= Date.now()) {
+    await ctx.reply("The new end time must be in the future. Send another date or /cancel.");
+    return;
+  }
+
+  if (newEndTime.getTime() <= giveaway.endTime.getTime()) {
+    await ctx.reply(
+      `The new end time must be later than the current end time: ${formatDate(giveaway.endTime)}`
+    );
+    return;
+  }
+
+  await updateGiveawayEndTime(giveawayId, newEndTime);
+  const updatedGiveaway = await getGiveaway(giveawayId);
+  if (updatedGiveaway) {
+    scheduleGiveawayEnd(updatedGiveaway, ctx.api);
+  }
+
+  delete ctx.session.pendingExtendGiveawayId;
+  await ctx.reply(
+    [
+      `<b>Giveaway extended.</b>`,
+      ``,
+      `<b>${escapeHtml(giveaway.prize)}</b>`,
+      `New end: ${formatDate(newEndTime)}`,
+    ].join("\n"),
+    { parse_mode: "HTML" }
   );
 });
 
@@ -107,6 +187,16 @@ async function showGiveawayStatus(
   if (giveaway.status === "active") {
     keyboard.text("🏁 End Now", `end:${giveaway.id}`).row();
   }
+  if (giveaway.status === "active" && isCreator) {
+    keyboard
+      .text("Extend End Time", `extend_giveaway:${giveaway.id}`)
+      .row()
+      .text("Post Giveaway Again", `post_giveaway:${giveaway.id}`)
+      .row();
+  }
+  if (isCreator) {
+    keyboard.text("Post Status Update", `post_status:${giveaway.id}`).row();
+  }
   if (giveaway.status === "ended" && winnersList.length > 0) {
     keyboard.text("🔄 Reroll", `reroll:${giveaway.id}`).row();
   }
@@ -127,6 +217,103 @@ statusCommand.callbackQuery(/^status:(.+)$/, async (ctx) => {
   const giveawayId = ctx.match![1]!;
   await showGiveawayStatus(ctx, giveawayId);
   await ctx.answerCallbackQuery();
+});
+
+statusCommand.callbackQuery(/^extend_giveaway:(.+)$/, async (ctx) => {
+  const giveawayId = ctx.match![1]!;
+  const giveaway = await getCreatorGiveaway(ctx, giveawayId);
+
+  if (!giveaway) {
+    await ctx.answerCallbackQuery({
+      text: "You can only extend your own giveaways.",
+      show_alert: true,
+    });
+    return;
+  }
+
+  if (giveaway.status !== "active") {
+    await ctx.answerCallbackQuery({
+      text: "Only active giveaways can be extended.",
+      show_alert: true,
+    });
+    return;
+  }
+
+  ctx.session.pendingExtendGiveawayId = giveawayId;
+  await ctx.reply(
+    [
+      `<b>Extend Giveaway End Time</b>`,
+      ``,
+      `<b>${escapeHtml(giveaway.prize)}</b>`,
+      `Current end: ${formatDate(giveaway.endTime)}`,
+      ``,
+      `Send the new end date in Ethiopian time:`,
+      `<code>YYYY-MM-DD HH:MM</code>`,
+      ``,
+      `Send /cancel to stop.`,
+    ].join("\n"),
+    { parse_mode: "HTML" }
+  );
+  await ctx.answerCallbackQuery();
+});
+
+statusCommand.callbackQuery(/^post_giveaway:(.+)$/, async (ctx) => {
+  const giveawayId = ctx.match![1]!;
+  const giveaway = await getCreatorGiveaway(ctx, giveawayId);
+
+  if (!giveaway) {
+    await ctx.answerCallbackQuery({
+      text: "You can only post your own giveaways.",
+      show_alert: true,
+    });
+    return;
+  }
+
+  if (giveaway.status !== "active") {
+    await ctx.answerCallbackQuery({
+      text: "Only active giveaways can be announced again.",
+      show_alert: true,
+    });
+    return;
+  }
+
+  await ctx.answerCallbackQuery("Posting giveaway announcement...");
+  const botInfo = await ctx.api.getMe();
+  const messageId = await announceGiveaway(ctx.api, giveaway, botInfo.username);
+  await ctx.reply(
+    messageId
+      ? "Giveaway announcement posted to the channel."
+      : "Could not post the giveaway announcement. Check bot channel permissions."
+  );
+});
+
+statusCommand.callbackQuery(/^post_status:(.+)$/, async (ctx) => {
+  const giveawayId = ctx.match![1]!;
+  const giveaway = await getCreatorGiveaway(ctx, giveawayId);
+
+  if (!giveaway) {
+    await ctx.answerCallbackQuery({
+      text: "You can only post status for your own giveaways.",
+      show_alert: true,
+    });
+    return;
+  }
+
+  const counts = await getParticipantCount(giveawayId);
+  const winnersList = await getWinners(giveawayId);
+
+  await ctx.answerCallbackQuery("Posting status update...");
+  const posted = await announceGiveawayStatus(
+    ctx.api,
+    giveaway,
+    counts.total,
+    winnersList.length
+  );
+  await ctx.reply(
+    posted
+      ? "Giveaway status posted to the channel."
+      : "Could not post the status update. Check bot channel permissions."
+  );
 });
 
 statusCommand.callbackQuery(/^delete_giveaway:(.+)$/, async (ctx) => {
