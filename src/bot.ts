@@ -43,6 +43,15 @@ export function createBot(): Bot<BotContext> {
   bot.use(hydrate());
   bot.use(session({ initial: () => ({}) }));
   bot.use(conversations());
+  bot.command("cancel", async (ctx, next) => {
+    if (ctx.conversation.active("createGiveawayFlow") === 0) {
+      await next();
+      return;
+    }
+
+    await ctx.conversation.exit("createGiveawayFlow");
+    await ctx.reply("❌ Giveaway creation cancelled.");
+  });
   bot.use(createConversation(createGiveawayFlow, "createGiveawayFlow"));
 
   // ─── Middleware ───

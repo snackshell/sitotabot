@@ -273,6 +273,14 @@ describe("createGiveawayFlow", () => {
             username: "partnerchannel",
           };
         }
+        if (chatId === "@secondchannel") {
+          return {
+            id: -3003,
+            type: "channel",
+            title: "Second Channel",
+            username: "secondchannel",
+          };
+        }
 
         return {
           id: -1001,
@@ -313,7 +321,9 @@ describe("createGiveawayFlow", () => {
         .fn()
         .mockResolvedValueOnce(makeMessageResponse("PS5 Console", messageReplies))
         .mockResolvedValueOnce(makeMessageResponse("@mychannel", messageReplies))
-        .mockResolvedValueOnce(makeMessageResponse("@partnerchannel", messageReplies))
+        .mockResolvedValueOnce(
+          makeMessageResponse("@partnerchannel, @secondchannel", messageReplies)
+        )
         .mockResolvedValueOnce(
           makeMessageResponse("2026-06-15 18:00", messageReplies)
         )
@@ -348,14 +358,43 @@ describe("createGiveawayFlow", () => {
     await createGiveawayFlow(conversation, ctx);
 
     expect(api.getChatMember).not.toHaveBeenCalledWith(-2002, 123);
-    expect(mocks.upsertChannel).toHaveBeenCalledTimes(2);
+    expect(mocks.upsertChannel).toHaveBeenCalledTimes(3);
     expect(mocks.createGiveaway).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "multi_channel",
         channelTelegramId: -1001n,
-        additionalChannelIds: [-2002n],
+        additionalChannelIds: [-2002n, -3003n],
       })
     );
     expect(edits.some((text) => text.includes("Giveaway Created!"))).toBe(true);
+  });
+
+  it("halts the conversation when the user sends /cancel", async () => {
+    const replies: string[] = [];
+    const messageReplies: string[] = [];
+    const ctx: any = {
+      from: { id: 123, username: "admin" },
+      chat: { id: 123, type: "private" },
+      reply: vi.fn(async (text: string) => {
+        replies.push(text);
+      }),
+    };
+
+    const haltError = new Error("halted");
+    const conversation: any = {
+      log: vi.fn(async () => undefined),
+      waitFor: vi
+        .fn()
+        .mockResolvedValueOnce(makeMessageResponse("/cancel", messageReplies)),
+      halt: vi.fn(async () => {
+        throw haltError;
+      }),
+    };
+
+    await expect(createGiveawayFlow(conversation, ctx)).rejects.toThrow("halted");
+
+    expect(conversation.halt).toHaveBeenCalledTimes(1);
+    expect(replies).toContain("❌ Giveaway creation cancelled.");
+    expect(mocks.createGiveaway).not.toHaveBeenCalled();
   });
 });

@@ -14,6 +14,14 @@ const log = createChildLogger("conversation:create-giveaway");
 
 type CreateGiveawayConversation = Conversation<BotContext, BotContext>;
 
+async function cancelGiveawayCreation(
+  conversation: CreateGiveawayConversation,
+  reply: () => Promise<unknown>
+): Promise<never> {
+  await reply();
+  return conversation.halt();
+}
+
 /**
  * Multi-step giveaway creation wizard using grammY conversations.
  */
@@ -49,8 +57,9 @@ export async function createGiveawayFlow(
   await conversation.log("received prize description", { prize });
 
   if (prize === "/cancel") {
-    await ctx.reply("❌ Giveaway creation cancelled.");
-    return;
+    return cancelGiveawayCreation(conversation, () =>
+      ctx.reply("❌ Giveaway creation cancelled.")
+    );
   }
 
   // ─── Step 2: Giveaway Type ───
@@ -126,8 +135,9 @@ export async function createGiveawayFlow(
       const text = channelResponse.message.text.trim();
       await conversation.log("received channel text", { text });
       if (text === "/cancel") {
-        await ctx.reply("❌ Giveaway creation cancelled.");
-        return;
+        return cancelGiveawayCreation(conversation, () =>
+          ctx.reply("❌ Giveaway creation cancelled.")
+        );
       }
       targetChatId = text.startsWith("@") ? text : `@${text}`;
       fallbackName = text;
@@ -222,8 +232,9 @@ export async function createGiveawayFlow(
       await conversation.log("received additional channels input", { text });
 
       if (text === "/cancel") {
-        await extraChannelsResponse.reply("❌ Giveaway creation cancelled.");
-        return;
+        return cancelGiveawayCreation(conversation, () =>
+          extraChannelsResponse.reply("❌ Giveaway creation cancelled.")
+        );
       }
 
       if (text.toLowerCase() === "none") {
@@ -235,17 +246,20 @@ export async function createGiveawayFlow(
         .split(/[\n,]+/)
         .map((input) => input.trim())
         .filter(Boolean)
-        .map((input) => (input.startsWith("@") ? input : `@${input}`));
+        .map((input) => parseTelegramUsername(input));
 
-      if (channelInputs.length === 0) {
+      if (channelInputs.length === 0 || channelInputs.some((input) => !input)) {
         await extraChannelsResponse.reply(
           "❌ Please send at least one channel username, or send none."
         );
         continue;
       }
 
+      const channelUsernames = channelInputs as string[];
+
       try {
-        for (const channelInput of channelInputs) {
+        for (const username of channelUsernames) {
+          const channelInput = `@${username}`;
           const chat = await ctx.api.getChat(channelInput);
           if (chat.type !== "channel" && chat.type !== "supergroup") {
             throw new Error(`${channelInput} is not a channel or supergroup.`);
@@ -316,8 +330,9 @@ export async function createGiveawayFlow(
     await conversation.log("received end date input", { dateText });
 
     if (dateText === "/cancel") {
-      await dateResponse.reply("❌ Giveaway creation cancelled.");
-      return;
+      return cancelGiveawayCreation(conversation, () =>
+        dateResponse.reply("❌ Giveaway creation cancelled.")
+      );
     }
 
     endTime = parseUserDate(dateText);
@@ -370,8 +385,9 @@ export async function createGiveawayFlow(
     const text = winnersResponse.message.text.trim();
     await conversation.log("received max winners input", { text });
     if (text === "/cancel") {
-      await ctx.reply("❌ Giveaway creation cancelled.");
-      return;
+      return cancelGiveawayCreation(conversation, () =>
+        ctx.reply("❌ Giveaway creation cancelled.")
+      );
     }
     const parsed = parseInt(text, 10);
     if (!isNaN(parsed) && parsed > 0 && parsed <= 100) {
@@ -407,8 +423,9 @@ export async function createGiveawayFlow(
     await conversation.log("received creator contact username", { text });
 
     if (text === "/cancel") {
-      await contactResponse.reply("❌ Giveaway creation cancelled.");
-      return;
+      return cancelGiveawayCreation(conversation, () =>
+        contactResponse.reply("❌ Giveaway creation cancelled.")
+      );
     }
 
     if (text.toLowerCase() === "me" && ctx.from?.username) {
@@ -495,7 +512,7 @@ export async function createGiveawayFlow(
   if (confirmCallback.match === "cancel_create") {
     await confirmCallback.editMessageText("❌ Giveaway creation cancelled.");
     await confirmCallback.answerCallbackQuery();
-    return;
+    return conversation.halt();
   }
 
   await confirmCallback.answerCallbackQuery("⏳ Creating giveaway...");
