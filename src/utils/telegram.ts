@@ -1,4 +1,6 @@
 import type { FairnessProof, GiveawayWithRelations } from "../types/index.js";
+import type { RequiredChannel } from "./channel-keyboard.js";
+import { formatRequiredChannelLines } from "./channel-keyboard.js";
 import { formatDate, formatTimeRemaining } from "./date.js";
 
 const STATUS_EMOJI: Record<string, string> = {
@@ -20,9 +22,11 @@ const TYPE_LABELS: Record<string, string> = {
  */
 export function formatGiveawayAnnouncement(
   giveaway: GiveawayWithRelations,
-  botUsername: string
+  botUsername: string,
+  requiredChannels: RequiredChannel[] = []
 ): string {
   const deepLink = `https://t.me/${botUsername}?start=join_${giveaway.id}`;
+  const requiredChannelLines = formatRequiredChannelLines(requiredChannels);
 
   return [
     `🎉 <b>GIVEAWAY TIME!</b> 🎉`,
@@ -38,6 +42,9 @@ export function formatGiveawayAnnouncement(
     giveaway.minAccountAge
       ? `  • Min Account Age: ${giveaway.minAccountAge} days`
       : null,
+    requiredChannelLines.length > 0 ? `` : null,
+    requiredChannelLines.length > 0 ? `<b>Required Channels:</b>` : null,
+    requiredChannelLines.length > 0 ? requiredChannelLines.join("\n") : null,
     ``,
     `⏰ <b>Ends:</b> ${formatDate(giveaway.endTime)}`,
     `⏳ <b>Time Left:</b> ${formatTimeRemaining(giveaway.endTime)}`,
@@ -104,9 +111,6 @@ export function formatWinnerAnnouncement(
     ...winnerLines,
     ``,
     `✅ This draw was <b>verifiably fair</b>.`,
-    giveaway.proofHash
-      ? `🔐 Proof Hash: <code>${giveaway.proofHash}</code>`
-      : null,
     ``,
     `<i>Winners have been notified via DM.</i>`,
   ]

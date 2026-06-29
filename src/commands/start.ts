@@ -11,6 +11,7 @@ import { getGiveaway, getGiveawayChannels } from "../services/giveaway.service.j
 import { validateParticipant } from "../services/validation.service.js";
 import { createChildLogger } from "../utils/logger.js";
 import { escapeHtml } from "../utils/telegram.js";
+import { formatDate } from "../utils/date.js";
 import {
   addRequiredChannelButtons,
   formatRequiredChannelLines,
@@ -215,11 +216,7 @@ async function handleJoinGiveaway(
         ? `<b>Required Channels:</b>\n${requiredChannelMarkup.lines.join("\n")}`
         : null,
       ``,
-      `⏰ Drawing on: ${giveaway.endTime.toLocaleString("en-US", {
-        dateStyle: "medium",
-        timeStyle: "short",
-        timeZone: "UTC",
-      })} UTC`,
+      `⏰ Drawing on: ${formatDate(giveaway.endTime)}`,
       ``,
       `Good luck! 🍀`,
     ]

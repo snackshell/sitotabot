@@ -273,6 +273,14 @@ export async function updateGiveawayStatus(
 }
 
 /**
+ * Delete a giveaway and its dependent giveaway data.
+ */
+export async function deleteGiveaway(id: string): Promise<void> {
+  await db.delete(giveaways).where(eq(giveaways.id, id));
+  log.info({ giveawayId: id }, "Giveaway deleted");
+}
+
+/**
  * Set the fairness proof data on a giveaway.
  */
 export async function setGiveawayProof(

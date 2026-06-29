@@ -297,9 +297,9 @@ export async function createGiveawayFlow(
       `✅ Channel: <b>${escapeHtml(channelName)}</b>`,
       ``,
       `<b>Step 4/6: End Date & Time</b>`,
-      `When should the giveaway end?`,
+      `When should the giveaway end? Use Ethiopian time (EAT / UTC+3).`,
       ``,
-      `Format: <code>YYYY-MM-DD HH:MM</code> (UTC)`,
+      `Format: <code>YYYY-MM-DD HH:MM</code>`,
       `Example: <code>2026-06-15 18:00</code>`,
     ].join("\n"),
     { parse_mode: "HTML" }

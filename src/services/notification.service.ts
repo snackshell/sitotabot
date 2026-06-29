@@ -1,14 +1,85 @@
-import type { Api } from "grammy";
+import { InlineKeyboard, type Api } from "grammy";
 import type { GiveawayWithRelations, WinnerWithUser } from "../types/index.js";
 import {
+  escapeHtml,
   formatWinnerAnnouncement,
   formatWinnerDM,
   formatGiveawayAnnouncement,
 } from "../utils/telegram.js";
+import { addRequiredChannelButtons } from "../utils/channel-keyboard.js";
+import { getGiveawayChannels } from "./giveaway.service.js";
 import { markWinnerNotified } from "./winner.service.js";
 import { createChildLogger } from "../utils/logger.js";
 
 const log = createChildLogger("service:notification");
+
+function serializeTelegramError(error: unknown): Record<string, unknown> {
+  const candidate = error as {
+    name?: unknown;
+    message?: unknown;
+    description?: unknown;
+    error_code?: unknown;
+    method?: unknown;
+    payload?: unknown;
+    response?: {
+      description?: unknown;
+      error_code?: unknown;
+      parameters?: unknown;
+    };
+    stack?: unknown;
+  };
+
+  return {
+    name: candidate?.name,
+    message: candidate?.message,
+    description: candidate?.description ?? candidate?.response?.description,
+    errorCode: candidate?.error_code ?? candidate?.response?.error_code,
+    parameters: candidate?.response?.parameters,
+    method: candidate?.method,
+    payload: candidate?.payload,
+    stack: candidate?.stack,
+  };
+}
+
+function isHtmlParseError(error: unknown): boolean {
+  const details = serializeTelegramError(error);
+  const text = `${details.message ?? ""} ${details.description ?? ""}`;
+  return /parse entities|can't parse|entity/i.test(text);
+}
+
+function htmlToPlainText(message: string): string {
+  return message
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(b|i|code|a)>/gi, "")
+    .replace(/<a\s+href="[^"]*">/gi, "")
+    .replace(/<(b|i|code)>/gi, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"');
+}
+
+async function sendHtmlMessageWithPlainTextFallback(
+  api: Api,
+  chatId: number,
+  message: string,
+  context: Record<string, unknown>
+) {
+  try {
+    return await api.sendMessage(chatId, message, { parse_mode: "HTML" });
+  } catch (error) {
+    if (!isHtmlParseError(error)) {
+      throw error;
+    }
+
+    log.warn(
+      { ...context, error: serializeTelegramError(error) },
+      "Telegram rejected HTML message, retrying as plain text"
+    );
+
+    return api.sendMessage(chatId, htmlToPlainText(message));
+  }
+}
 
 /**
  * Announce a giveaway in its channel.
@@ -19,7 +90,12 @@ export async function announceGiveaway(
   botUsername: string
 ): Promise<number | null> {
   try {
-    const message = formatGiveawayAnnouncement(giveaway, botUsername);
+    const requiredChannels = await getGiveawayChannels(giveaway.id);
+    const message = formatGiveawayAnnouncement(
+      giveaway,
+      botUsername,
+      requiredChannels
+    );
     const channelTgId = giveaway.channel?.telegramId;
 
     if (!channelTgId) {
@@ -27,30 +103,21 @@ export async function announceGiveaway(
       return null;
     }
 
+    const keyboard = new InlineKeyboard();
+    addRequiredChannelButtons(keyboard, requiredChannels);
+    if (requiredChannels.some((channel) => channel.username)) {
+      keyboard.row();
+    }
+    keyboard
+      .text("Join Giveaway", `join_giveaway:${giveaway.id}`)
+      .row()
+      .text("Check Eligibility", `check_eligibility:${giveaway.id}`)
+      .row()
+      .url("Open Bot", `https://t.me/${botUsername}?start=join_${giveaway.id}`);
+
     const sent = await api.sendMessage(Number(channelTgId), message, {
       parse_mode: "HTML",
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: "Join Giveaway",
-              callback_data: `join_giveaway:${giveaway.id}`,
-            },
-          ],
-          [
-            {
-              text: "Check Eligibility",
-              callback_data: `check_eligibility:${giveaway.id}`,
-            },
-          ],
-          [
-            {
-              text: "Open Bot",
-              url: `https://t.me/${botUsername}?start=join_${giveaway.id}`,
-            },
-          ],
-        ],
-      },
+      reply_markup: keyboard,
     });
 
     log.info(
@@ -61,7 +128,7 @@ export async function announceGiveaway(
     return sent.message_id;
   } catch (error) {
     log.error(
-      { error, giveawayId: giveaway.id },
+      { error: serializeTelegramError(error), giveawayId: giveaway.id },
       "Failed to announce giveaway"
     );
     return null;
@@ -91,9 +158,12 @@ export async function announceWinners(
 
     const message = formatWinnerAnnouncement(giveaway, winnerData);
 
-    await api.sendMessage(Number(channelTgId), message, {
-      parse_mode: "HTML",
-    });
+    await sendHtmlMessageWithPlainTextFallback(
+      api,
+      Number(channelTgId),
+      message,
+      { giveawayId: giveaway.id, chatId: channelTgId.toString() }
+    );
 
     log.info(
       { giveawayId: giveaway.id, winners: winnerUsers.length },
@@ -101,7 +171,7 @@ export async function announceWinners(
     );
   } catch (error) {
     log.error(
-      { error, giveawayId: giveaway.id },
+      { error: serializeTelegramError(error), giveawayId: giveaway.id },
       "Failed to announce winners"
     );
   }
@@ -123,9 +193,15 @@ export async function notifyWinners(
     try {
       const message = formatWinnerDM(giveaway, winner.position);
 
-      await api.sendMessage(Number(winner.user.telegramId), message, {
-        parse_mode: "HTML",
-      });
+      await sendHtmlMessageWithPlainTextFallback(
+        api,
+        Number(winner.user.telegramId),
+        message,
+        {
+          giveawayId: giveaway.id,
+          userId: winner.user.telegramId.toString(),
+        }
+      );
 
       await markWinnerNotified(winner.id);
       notified++;
@@ -141,7 +217,7 @@ export async function notifyWinners(
       failed++;
       log.warn(
         {
-          error,
+          error: serializeTelegramError(error),
           userId: winner.user.telegramId.toString(),
           giveawayId: giveaway.id,
         },
@@ -158,7 +234,7 @@ function formatWinnerList(winnerUsers: WinnerWithUser[]): string {
     .map((winner) => {
       const username = winner.user.username ? `@${winner.user.username}` : null;
       const label = username ?? winner.user.firstName;
-      return `#${winner.position}: ${label} (${winner.user.telegramId})`;
+      return `#${winner.position}: ${escapeHtml(label)} (${winner.user.telegramId})`;
     })
     .join("\n");
 }
@@ -176,8 +252,8 @@ export async function notifyCreatorWinners(
   const message = [
     `🏆 <b>Winners selected</b>`,
     ``,
-    `<b>Prize:</b> ${giveaway.prize}`,
-    `<b>Channel:</b> ${giveaway.channel?.name ?? "Unknown"}`,
+    `<b>Prize:</b> ${escapeHtml(giveaway.prize)}`,
+    `<b>Channel:</b> ${escapeHtml(giveaway.channel?.name ?? "Unknown")}`,
     `<b>Winner Count:</b> ${winnerUsers.length}`,
     `<b>Visibility:</b> ${giveaway.winnersPublic ? "Public" : "Private"}`,
     giveaway.creatorContactUsername
@@ -190,12 +266,18 @@ export async function notifyCreatorWinners(
     .join("\n");
 
   try {
-    await api.sendMessage(Number(giveaway.creator.telegramId), message, {
-      parse_mode: "HTML",
-    });
+    await sendHtmlMessageWithPlainTextFallback(
+      api,
+      Number(giveaway.creator.telegramId),
+      message,
+      {
+        giveawayId: giveaway.id,
+        creatorId: giveaway.creator.telegramId.toString(),
+      }
+    );
   } catch (error) {
     log.error(
-      { error, giveawayId: giveaway.id },
+      { error: serializeTelegramError(error), giveawayId: giveaway.id },
       "Failed to notify creator about winners"
     );
   }
@@ -220,20 +302,23 @@ export async function notifyAdmin(
   const message = [
     `${emoji[event]} <b>Giveaway ${event.toUpperCase()}</b>`,
     ``,
-    `<b>Prize:</b> ${giveaway.prize}`,
+    `<b>Prize:</b> ${escapeHtml(giveaway.prize)}`,
     `<b>ID:</b> <code>${giveaway.id}</code>`,
-    details ? `\n${details}` : null,
+    details ? `\n${escapeHtml(details)}` : null,
   ]
     .filter(Boolean)
     .join("\n");
 
   try {
-    await api.sendMessage(Number(adminTelegramId), message, {
-      parse_mode: "HTML",
-    });
+    await sendHtmlMessageWithPlainTextFallback(
+      api,
+      Number(adminTelegramId),
+      message,
+      { giveawayId: giveaway.id, adminId: adminTelegramId.toString() }
+    );
   } catch (error) {
     log.error(
-      { error, adminId: adminTelegramId.toString() },
+      { error: serializeTelegramError(error), adminId: adminTelegramId.toString() },
       "Failed to notify admin"
     );
   }

@@ -8,6 +8,7 @@ import { msUntil } from "../utils/date.js";
 import { createChildLogger } from "../utils/logger.js";
 
 const log = createChildLogger("service:scheduler");
+const MAX_TIMEOUT_MS = 2_147_483_647;
 
 // In-memory store of scheduled tasks
 const scheduledTasks = new Map<string, ScheduledTask>();
@@ -34,16 +35,7 @@ export function scheduleGiveawayEnd(
   // Cancel any existing schedule for this giveaway
   cancelSchedule(giveaway.id);
 
-  const timeout = setTimeout(() => {
-    processGiveawayEnd(giveaway.id, api);
-    scheduledTasks.delete(giveaway.id);
-  }, delay);
-
-  scheduledTasks.set(giveaway.id, {
-    giveawayId: giveaway.id,
-    endTime: giveaway.endTime,
-    timeout,
-  });
+  scheduleGiveawayTimeout(giveaway, api);
 
   const delayMinutes = Math.round(delay / 60_000);
   log.info(
@@ -54,6 +46,31 @@ export function scheduleGiveawayEnd(
     },
     `Giveaway end scheduled in ${delayMinutes} minutes`
   );
+}
+
+function scheduleGiveawayTimeout(
+  giveaway: GiveawayWithRelations,
+  api: Api
+): void {
+  const delay = msUntil(giveaway.endTime);
+  const timeoutDelay = Math.min(delay, MAX_TIMEOUT_MS);
+
+  const timeout = setTimeout(() => {
+    const remaining = msUntil(giveaway.endTime);
+    if (remaining > 0) {
+      scheduleGiveawayTimeout(giveaway, api);
+      return;
+    }
+
+    void processGiveawayEnd(giveaway.id, api);
+    scheduledTasks.delete(giveaway.id);
+  }, timeoutDelay);
+
+  scheduledTasks.set(giveaway.id, {
+    giveawayId: giveaway.id,
+    endTime: giveaway.endTime,
+    timeout,
+  });
 }
 
 /**

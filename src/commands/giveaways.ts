@@ -4,7 +4,6 @@ import {
   getGiveaway,
   getGiveawayChannels,
   listActiveGiveaways,
-  listPublicEndedGiveaways,
 } from "../services/giveaway.service.js";
 import { getParticipantCount } from "../services/participant.service.js";
 import { getWinners } from "../services/winner.service.js";
@@ -19,18 +18,17 @@ export const giveawaysCommand = new Composer<BotContext>();
 
 async function getGiveawaysListMarkup() {
   const active = await listActiveGiveaways();
-  const publicEnded = await listPublicEndedGiveaways();
 
-  if (active.length === 0 && publicEnded.length === 0) {
+  if (active.length === 0) {
     return {
-      text: "📭 <b>No active giveaways or public results at the moment.</b>\n\nCheck back later or ask channel owners to start one!",
+      text: "📭 <b>No active giveaways at the moment.</b>\n\nCheck back later or ask channel owners to start one!",
       keyboard: null,
     };
   }
 
   const text = [
     `🎁 <b>Giveaways</b>`,
-    `Here are active giveaways and public results:`,
+    `Here are active giveaways:`,
     ``,
     `Click any item to view details.`,
   ].join("\n");
@@ -40,11 +38,6 @@ async function getGiveawaysListMarkup() {
   for (const g of active.slice(0, 10)) {
     const channelName = g.channel?.name ?? "Channel";
     keyboard.text(`🎁 ${g.prize} (${channelName})`, `view_active:${g.id}`).row();
-  }
-
-  for (const g of publicEnded.slice(0, 10)) {
-    const channelName = g.channel?.name ?? "Channel";
-    keyboard.text(`🏆 Results: ${g.prize} (${channelName})`, `view_results:${g.id}`).row();
   }
 
   return { text, keyboard };
@@ -94,6 +87,9 @@ giveawaysCommand.callbackQuery(/^view_active:(.+)$/, async (ctx) => {
 
   const keyboard = new InlineKeyboard();
   addRequiredChannelButtons(keyboard, requiredChannels);
+  if (requiredChannels.some((channel) => channel.username)) {
+    keyboard.row();
+  }
 
   keyboard
     .text("Join Giveaway", `join_giveaway:${giveaway.id}`)

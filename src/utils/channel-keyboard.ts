@@ -39,12 +39,14 @@ export function addRequiredChannelButtons(
   const linkableChannels = channels.filter((channel) => channel.username);
 
   linkableChannels.forEach((channel, index) => {
-    keyboard
-      .url(
-        buttonLabel(channel, index, linkableChannels.length),
-        `https://t.me/${cleanUsername(channel.username!)}`
-      )
-      .row();
+    keyboard.url(
+      buttonLabel(channel, index, linkableChannels.length),
+      `https://t.me/${cleanUsername(channel.username!)}`
+    );
+
+    if (index < linkableChannels.length - 1) {
+      keyboard.row();
+    }
   });
 
   return keyboard;

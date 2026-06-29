@@ -1,3 +1,6 @@
+export const ETHIOPIA_TIME_ZONE = "Africa/Addis_Ababa";
+const ETHIOPIA_UTC_OFFSET_MINUTES = 3 * 60;
+
 /**
  * Format a remaining duration into a human-readable string.
  * e.g. "2 days, 5 hours, 30 minutes"
@@ -21,7 +24,7 @@ export function formatTimeRemaining(endTime: Date): string {
 }
 
 /**
- * Format a Date as a display string (UTC).
+ * Format a Date as a display string in Ethiopian time.
  */
 export function formatDate(date: Date): string {
   return date.toLocaleString("en-US", {
@@ -30,14 +33,14 @@ export function formatDate(date: Date): string {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "UTC",
+    timeZone: ETHIOPIA_TIME_ZONE,
     timeZoneName: "short",
   });
 }
 
 /**
  * Parse a date string that users might enter.
- * Supports: "2024-12-31 23:59", "2024-12-31T23:59:00Z", etc.
+ * Supports: "2024-12-31 23:59" as Ethiopian time, "2024-12-31T23:59:00Z", etc.
  * Returns null if invalid.
  */
 export function parseUserDate(input: string): Date | null {
@@ -66,22 +69,21 @@ export function parseUserDate(input: string): Date | null {
       return null;
     }
 
-    const date = new Date(
-      Date.UTC(
-        yearNumber,
-        monthNumber - 1,
-        dayNumber,
-        hourNumber,
-        minuteNumber
-      )
+    const utcTime =
+      Date.UTC(yearNumber, monthNumber - 1, dayNumber, hourNumber, minuteNumber) -
+      ETHIOPIA_UTC_OFFSET_MINUTES * 60_000;
+    const date = new Date(utcTime);
+
+    const ethiopianDate = new Date(
+      date.getTime() + ETHIOPIA_UTC_OFFSET_MINUTES * 60_000
     );
 
     if (
-      date.getUTCFullYear() === yearNumber &&
-      date.getUTCMonth() === monthNumber - 1 &&
-      date.getUTCDate() === dayNumber &&
-      date.getUTCHours() === hourNumber &&
-      date.getUTCMinutes() === minuteNumber
+      ethiopianDate.getUTCFullYear() === yearNumber &&
+      ethiopianDate.getUTCMonth() === monthNumber - 1 &&
+      ethiopianDate.getUTCDate() === dayNumber &&
+      ethiopianDate.getUTCHours() === hourNumber &&
+      ethiopianDate.getUTCMinutes() === minuteNumber
     ) {
       return date;
     }
