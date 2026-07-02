@@ -9,6 +9,9 @@ const envSchema = z.object({
   // Optional: Random.org
   RANDOM_ORG_API_KEY: z.string().optional().default(""),
 
+  // Server configuration
+  PORT: z.coerce.number().optional().default(8080),
+
   // Optional: Webhook mode
   WEBHOOK_URL: z.string().optional().default(""),
   WEBHOOK_PORT: z.coerce.number().optional().default(8443),
